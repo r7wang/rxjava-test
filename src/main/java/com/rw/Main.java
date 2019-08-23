@@ -1,37 +1,15 @@
 package com.rw;
 
-import io.reactivex.*;
+import io.grpc.Context;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
 import io.reactivex.schedulers.Schedulers;
 
-public class Main {
+public class Main
+{
 
-    public static void main(String[] args) {
-        System.out.println(String.format("(Thread-%s) Application Start", Thread.currentThread().getId()));
-        Observable<String> obsBase = Observable
-            .create((ObservableEmitter<Integer> obs) -> {
-                System.out.println(String.format("(Thread-%s) Observable Before Emit", Thread.currentThread().getId()));
-                int[] values = {1, 2, 5, 9};
-                for (int i : values) {
-                    obs.onNext(i);
-                    System.out.println(String.format("(Thread-%s) Observable Emit", Thread.currentThread().getId()));
-                }
-                obs.onComplete();
-                System.out.println(String.format("(Thread-%s) Observable After Emit", Thread.currentThread().getId()));
-            })
-            .subscribeOn(Schedulers.newThread())
-            .observeOn(Schedulers.newThread())
-            .flatMap(s -> {
-                System.out.println(String.format("(Thread-%s) FlatMap: %s", Thread.currentThread().getId(), s));
-                return Observable.fromArray(s, s + 1, s + 2, s + 3, s + 4, s + 5);
-            })
-            .observeOn(Schedulers.newThread())
-            .map(s -> {
-                System.out.println(String.format("(Thread-%s) Map: %s", Thread.currentThread().getId(), s));
-                return s.toString() + "val";
-            });
-        testOutput(obsBase);
-        System.out.println(String.format("(Thread-%s) Application End", Thread.currentThread().getId()));
-
+    public static void main(String[] args)
+    {
         /*
         // example: observable.fromArray
         Observable<Integer> obsBase = Observable.fromArray(1, 2, 5, 9);
@@ -105,19 +83,112 @@ public class Main {
          */
     }
 
-    public static void testOutput(Observable obs) {
-        testOutput(obs, 1);
+    public static void testBlocking()
+    {
+        // TODO: Implement.
     }
 
-    public static void testOutput(Observable obs, int agentId) {
-        obs.blockingSubscribe(
-                s -> System.out.println(String.format("(Thread-%s) Subscriber-%s: %s", Thread.currentThread().getId(), agentId, s)),
-                s -> System.out.println(String.format("(Thread-%s) Subscriber-%s: Error", Thread.currentThread().getId(), agentId)),
-                () -> System.out.println(String.format("(Thread-%s) Subscriber-%s: Complete", Thread.currentThread().getId(), agentId)));
+    public static void testFireForget(boolean shouldError)
+    {
+        Context.current().fork().run(() -> {
+            Observable obs = baseObservable(shouldError)
+                .subscribeOn(Schedulers.newThread());
+            subscribe(obs);
+        });
+        sleep(10, 500);
     }
 
-    public static void testMultiOutput(Observable obs) {
-        testOutput(obs, 1);
-        testOutput(obs, 2);
+    public static void testScheduling()
+    {
+        runApp(() ->
+        {
+            Observable<String> obsBase = baseObservable(false)
+                .subscribeOn(Schedulers.newThread())
+                .observeOn(Schedulers.newThread())
+                .flatMap(s -> {
+                    print(String.format("FlatMap: %s", s));
+                    return Observable.fromArray(s, s + 1, s + 2, s + 3, s + 4, s + 5);
+                })
+                .observeOn(Schedulers.newThread())
+                .map(s -> {
+                    print(String.format("Map: %s", s));
+                    return s.toString() + "val";
+                });
+            return obsBase;
+        });
+    }
+
+    public static void runApp(AppInterface runner)
+    {
+        print("Application Start");
+        Observable obs = runner.Run();
+        subscribe(obs);
+        sleep(10, 3);
+        print("Application End");
+    }
+
+    public static Observable<Integer> baseObservable(boolean shouldError)
+    {
+        return Observable
+            .create((ObservableEmitter<Integer> obs) -> {
+                print("Observable Before Emit");
+                int[] values = {1, 2, 5, 9};
+                for (int i : values) {
+                    obs.onNext(i);
+                    print("Observable Emit");
+                }
+
+                if (shouldError) {
+                    throw new RuntimeException("Something bad happened...");
+                }
+
+                obs.onComplete();
+                print("Observable After Emit");
+            });
+    }
+
+    public static void subscribe(Observable obs)
+    {
+        subscribe(obs, 1);
+    }
+
+    public static void subscribe(Observable obs, int agentId)
+    {
+        obs.subscribe(
+            s -> print(String.format("Subscriber-%s: %s", agentId, s)),
+            s -> print(String.format("Subscriber-%s: Error", agentId)),
+            () -> print(String.format("Subscriber-%s: Complete", agentId)));
+        print("Subscribed");
+    }
+
+    public static void subscribeMulti(Observable obs)
+    {
+        subscribe(obs, 1);
+        subscribe(obs, 2);
+    }
+
+    public static void sleep(int numCycles, int intervalMs)
+    {
+        for (int i = 0; i < numCycles; i++) {
+            print("Sleeping...");
+            try {
+                // Need a very short interval to see thread interleaving.
+                Thread.sleep(intervalMs);
+            }
+            catch (InterruptedException ex) {
+                print("Sleep Interrupted");
+                break;
+            }
+        }
+    }
+
+    public static void print(String s)
+    {
+        System.out.println(String.format("(Thread-%s) %s", threadId(), s));
+    }
+
+    public static long threadId()
+    {
+        return Thread.currentThread().getId();
     }
 }
