@@ -13,16 +13,6 @@ public class Main
         runner.run();
 
         /*
-        // example: interval
-        Observable<Long> clock = Observable.interval(0, 300, TimeUnit.MILLISECONDS);
-        clock.blockingSubscribe(time -> {
-            if (time % 2 == 0) {
-                System.out.println("Tick");
-            } else {
-                System.out.println("Tock");
-            }
-        });
-
         // example: flatMap
         Observable<Integer> obsFlatMap = obsBase
             .flatMap(s -> Observable.fromArray(s, s + 1, s + 2));
