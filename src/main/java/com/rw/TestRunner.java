@@ -7,10 +7,10 @@ import io.reactivex.ObservableEmitter;
 import io.reactivex.Single;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.schedulers.Schedulers;
-
 import java.util.concurrent.TimeUnit;
 
-public class TestRunner {
+public class TestRunner
+{
     private Logger logger;
 
     public TestRunner(Logger logger)
@@ -18,8 +18,33 @@ public class TestRunner {
         this.logger = logger;
     }
 
-    public void run() {
-        testHotObservable();
+    public void run()
+    {
+        testExceptionsThrown();
+    }
+
+    private void testExceptionsThrown()
+    {
+        // In the case below, it seems like any exceptions are swallowed and don't appear to impact the subscribing
+        // thread.
+        //  - If we have an onError handler, it will do what's in that handler.
+        //  - If we don't have an onError handler, the exception will be printed to console, but nothing will happen.
+        //  - In all cases, the last line is reachable.
+        runSubscribe(() ->
+        {
+            Observable<Integer> obs = baseObservable(false)
+                .map((Integer s) -> {
+                    if (true) {
+                        throw new RuntimeException("Error 1");
+                    }
+                    return s + 1;
+                })
+                .map((Integer s) -> {
+                    return s + 2;
+                });
+            return obs;
+        }, true);
+        logger.log("Is this code reachable?");
     }
 
     private void testHotObservable()
@@ -31,18 +56,18 @@ public class TestRunner {
         //    won't trigger.
         logger.log("Application Start");
         ConnectableObservable<Long> obs = Observable.interval(0, 300, TimeUnit.MILLISECONDS)
-                .subscribeOn(Schedulers.newThread())
-                .doOnNext(count -> {
-                    logger.log(String.format("Emit %s", count));
-                })
-                .publish();
+            .subscribeOn(Schedulers.newThread())
+            .doOnNext(count -> {
+                logger.log(String.format("Emit %s", count));
+            })
+            .publish();
         logger.log("Connecting");
         obs.connect();
         logger.log("Connected");
         sleep(1, 1000);
-        subscribe(obs, 1);
+        subscribe(obs, 1, false);
         sleep(1, 5000);
-        subscribe(obs, 2);
+        subscribe(obs, 2, false);
         sleep(5, 3000);
         logger.log("Application End");
     }
@@ -62,24 +87,24 @@ public class TestRunner {
         //  - It seems that ordering is followed for doOnError sequences.
         //  - It seems that the duration of doOnError execution impacts how much work is done by flatMap and map. If
         //    doOnError takes too long, then execution will occur for a longer period of time after the error occurs.
-        runNonBlockingSubscribe(() ->
+        runSubscribe(() ->
         {
             Observable<String> obs = baseObservable(true)
-                    .subscribeOn(Schedulers.newThread())
-                    .observeOn(Schedulers.newThread())
-                    .doOnError(error -> {
-                        logger.log(String.format("doOnError: %s", error.getMessage()));
-                    })
-                    .flatMap(this::expandNextValues)
-                    .observeOn(Schedulers.newThread())
-                    .doOnError(error -> {
-                        // This should also get triggered if there is an error, but it should
-                        // happen after the first one, and on a different thread.
-                        logger.log(String.format("doOnError: %s", error.getMessage()));
-                    })
-                    .map(this::intToString);
+                .subscribeOn(Schedulers.newThread())
+                .observeOn(Schedulers.newThread())
+                .doOnError(error -> {
+                    logger.log(String.format("doOnError: %s", error.getMessage()));
+                })
+                .flatMap(this::expandNextValues)
+                .observeOn(Schedulers.newThread())
+                .doOnError(error -> {
+                    // This should also get triggered if there is an error, but it should
+                    // happen after the first one, and on a different thread.
+                    logger.log(String.format("doOnError: %s", error.getMessage()));
+                })
+                .map(this::intToString);
             return obs;
-        });
+        }, false);
     }
 
     private void testFireForget(boolean shouldError)
@@ -88,8 +113,8 @@ public class TestRunner {
         // the response. If the microservice call errors out, there's no impact on the main process.
         Context.current().fork().run(() -> {
             Observable obs = baseObservable(shouldError)
-                    .subscribeOn(Schedulers.newThread());
-            subscribe(obs);
+                .subscribeOn(Schedulers.newThread());
+            subscribe(obs, true);
         });
         sleep(10, 500);
     }
@@ -99,16 +124,16 @@ public class TestRunner {
         // Uses a mix of subscribeOn and observeOn with print statements to better understand what threads are
         // running which parts of the system.
         //  - Try commenting out the subscribeOn or any of the observeOn.
-        runNonBlockingSubscribe(() ->
+        runSubscribe(() ->
         {
             Observable<String> obs = baseObservable(false)
-                    .subscribeOn(Schedulers.newThread())
-                    .observeOn(Schedulers.newThread())
-                    .flatMap(this::expandNextValues)
-                    .observeOn(Schedulers.newThread())
-                    .map(this::intToString);
+                .subscribeOn(Schedulers.newThread())
+                .observeOn(Schedulers.newThread())
+                .flatMap(this::expandNextValues)
+                .observeOn(Schedulers.newThread())
+                .map(this::intToString);
             return obs;
-        });
+        }, false);
     }
 
     private void testDefer()
@@ -125,34 +150,36 @@ public class TestRunner {
         //    return time;
         // });
         // Observable<Long> obs = Observable.just(System.currentTimeMillis());
-        subscribe(obs);
+        subscribe(obs, true);
         try {
             Thread.sleep(1000);
-        } catch (Exception ex) {}
-        subscribe(obs);
+        }
+        catch (Exception ex) {
+        }
+        subscribe(obs, true);
     }
 
     private void testGroupBy()
     {
         // We can do the same thing with a regular map.
         Observable<String> obsGroupBy = baseObservable(false)
-                .groupBy(s -> s/3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
-                .flatMap(grp -> grp.map(s -> String.format("%s -> %s", grp.getKey(), s)));
-        subscribe(obsGroupBy);
+            .groupBy(s -> s / 3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
+            .flatMap(grp -> grp.map(s -> String.format("%s -> %s", grp.getKey(), s)));
+        subscribe(obsGroupBy, true);
 
         // Aggregation shows a better use case of why we may want to use a groupBy.
         Observable<Integer> obsAgg = baseObservable(false)
-                .groupBy(s -> s/3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
-                .flatMap(grp -> grp.reduce(0, (accumulator, x) -> accumulator + x).toObservable());
-        subscribe(obsAgg);
+            .groupBy(s -> s / 3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
+            .flatMap(grp -> grp.reduce(0, (accumulator, x) -> accumulator + x).toObservable());
+        subscribe(obsAgg, true);
     }
 
     private void testMultipleSubscriber()
     {
         // Both subscribers see the same results.
         Observable<Integer> obs = Observable.fromArray(1, 2, 5, 9);
-        subscribe(obs, 1);
-        subscribe(obs, 2);
+        subscribe(obs, 1, true);
+        subscribe(obs, 2, true);
     }
 
     private void testEmission()
@@ -160,55 +187,57 @@ public class TestRunner {
         // Single emission.
         Single<String> singleSource = Single.just("single item");
         singleSource.subscribe(
-                s -> logger.log("Item received: from singleSource " +  s),
-                Throwable::printStackTrace
+            s -> logger.log("Item received: from singleSource " + s),
+            Throwable::printStackTrace
         );
 
         // Maybe emits something.
         Maybe<String> maybeSource = Maybe.just("single item");
         maybeSource.subscribe(
-                s -> logger.log("Item received: from maybeSource " +  s),
-                Throwable::printStackTrace,
-                () -> logger.log("Done from MaybeSource")
+            s -> logger.log("Item received: from maybeSource " + s),
+            Throwable::printStackTrace,
+            () -> logger.log("Done from MaybeSource")
         );
 
         // Maybe emits nothing.
         Maybe<Integer> emptySource = Maybe.empty();
         emptySource.subscribe(
-                s -> logger.log("Item received: from emptySource" + s),
-                Throwable::printStackTrace,
-                () -> logger.log("Done from EmptySource")
+            s -> logger.log("Item received: from emptySource" + s),
+            Throwable::printStackTrace,
+            () -> logger.log("Done from EmptySource")
         );
     }
 
-    private void runNonBlockingSubscribe(AppInterface app)
+    private void runSubscribe(AppInterface app, boolean isBlocking)
     {
         logger.log("Application Start");
         Observable obs = app.Run();
-        subscribe(obs);
-        sleep(10, 3);
+        subscribe(obs, isBlocking);
+        if (!isBlocking) {
+            sleep(10, 3);
+        }
         logger.log("Application End");
     }
 
     private Observable<Integer> baseObservable(boolean shouldError)
     {
         return Observable
-                .create((ObservableEmitter<Integer> obs) -> {
-                    logger.log("Observable Before Emit");
-                    int[] values = {1, 2, 5, 9};
-                    for (int i : values) {
-                        obs.onNext(i);
-                        logger.log("Observable Emitted");
-                    }
+            .create((ObservableEmitter<Integer> obs) -> {
+                logger.log("Observable Before Emit");
+                int[] values = {1, 2, 5, 9};
+                for (int i : values) {
+                    obs.onNext(i);
+                    logger.log("Observable Emitted");
+                }
 
-                    if (shouldError) {
-                        logger.log("Observable Throwing Exception");
-                        throw new RuntimeException("Something bad happened...");
-                    }
+                if (shouldError) {
+                    logger.log("Observable Throwing Exception");
+                    throw new RuntimeException("Something bad happened...");
+                }
 
-                    obs.onComplete();
-                    logger.log("Observable After Emit");
-                });
+                obs.onComplete();
+                logger.log("Observable After Emit");
+            });
     }
 
     private Observable<Integer> expandNextValues(Integer s)
@@ -238,17 +267,25 @@ public class TestRunner {
         }
     }
 
-    private void subscribe(Observable obs)
+    private void subscribe(Observable obs, boolean isBlocking)
     {
-        subscribe(obs, 1);
+        subscribe(obs, 1, isBlocking);
     }
 
-    private void subscribe(Observable obs, int agentId)
+    private <T> void subscribe(Observable<T> obs, int agentId, boolean isBlocking)
     {
-        obs.subscribe(
+        if (isBlocking) {
+            obs.blockingSubscribe(
                 s -> logger.log(String.format("Subscriber-%s: %s", agentId, s)),
                 s -> logger.log(String.format("Subscriber-%s: Error", agentId)),
                 () -> logger.log(String.format("Subscriber-%s: Complete", agentId)));
+        }
+        else {
+            obs.subscribe(
+                s -> logger.log(String.format("Subscriber-%s: %s", agentId, s)),
+                s -> logger.log(String.format("Subscriber-%s: Error", agentId)),
+                () -> logger.log(String.format("Subscriber-%s: Complete", agentId)));
+        }
         logger.log("Subscribed");
     }
 }
