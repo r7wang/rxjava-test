@@ -4,7 +4,6 @@ import io.grpc.Context;
 import io.reactivex.Completable;
 import io.reactivex.Maybe;
 import io.reactivex.Observable;
-import io.reactivex.ObservableEmitter;
 import io.reactivex.Single;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.schedulers.Schedulers;
@@ -15,15 +14,34 @@ import java.util.concurrent.TimeUnit;
 public class TestRunner
 {
     private Logger logger;
+    private ObservableGenerator obsGen;
 
-    public TestRunner(Logger logger)
+    public TestRunner(
+        Logger logger,
+        ObservableGenerator obsGen)
     {
         this.logger = logger;
+        this.obsGen = obsGen;
     }
 
     public void run()
     {
-        testRuntimeExceptionKeepEmitting();
+        testZip();
+    }
+
+    private void testZip()
+    {
+        runSubscribe(() ->
+        {
+            // Zip allows us to concurrently merge multiple observables together through an arbitrarily defined
+            // function.
+            //  - It will only do so if there are corresponding elements in both observables.
+            Observable<Integer> obsA = obsGen.Generate(false, 1, 2, 5, 9)
+               .subscribeOn(Schedulers.newThread());
+            Observable<Integer> obsB = obsGen.Generate(false, 3, 6, 7)
+               .subscribeOn(Schedulers.newThread());
+            return Observable.zip(obsA, obsB, (a, b) -> a + b);
+        }, true);
     }
 
     private void testConcatCompletableOrder()
@@ -82,7 +100,7 @@ public class TestRunner
         //  - In all cases, the last line is reachable.
         runSubscribe(() ->
         {
-            Observable<Integer> obs = baseObservable(false)
+            Observable<Integer> obs = obsGen.Generate()
                 .map((Integer s) -> {
                     if (true) {
                         throw new RuntimeException("Error 1");
@@ -139,7 +157,7 @@ public class TestRunner
         //    doOnError takes too long, then execution will occur for a longer period of time after the error occurs.
         runSubscribe(() ->
         {
-            Observable<String> obs = baseObservable(true)
+            Observable<String> obs = obsGen.GenerateWithError()
                 .subscribeOn(Schedulers.newThread())
                 .observeOn(Schedulers.newThread())
                 .doOnError(error -> {
@@ -157,12 +175,12 @@ public class TestRunner
         }, false);
     }
 
-    private void testFireForget(boolean shouldError)
+    private void testFireForget()
     {
         // Defines an approach to firing off a call to a microservice without needing to block on or wait for
         // the response. If the microservice call errors out, there's no impact on the main process.
         Context.current().fork().run(() -> {
-            Observable obs = baseObservable(shouldError)
+            Observable obs = obsGen.GenerateWithError()
                 .subscribeOn(Schedulers.newThread());
             subscribe(obs, true);
         });
@@ -176,7 +194,7 @@ public class TestRunner
         //  - Try commenting out the subscribeOn or any of the observeOn.
         runSubscribe(() ->
         {
-            Observable<String> obs = baseObservable(false)
+            Observable<String> obs = obsGen.Generate()
                 .subscribeOn(Schedulers.newThread())
                 .observeOn(Schedulers.newThread())
                 .flatMap(this::expandNextValues)
@@ -212,13 +230,13 @@ public class TestRunner
     private void testGroupBy()
     {
         // We can do the same thing with a regular map.
-        Observable<String> obsGroupBy = baseObservable(false)
+        Observable<String> obsGroupBy = obsGen.Generate()
             .groupBy(s -> s / 3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
             .flatMap(grp -> grp.map(s -> String.format("%s -> %s", grp.getKey(), s)));
         subscribe(obsGroupBy, true);
 
         // Aggregation shows a better use case of why we may want to use a groupBy.
-        Observable<Integer> obsAgg = baseObservable(false)
+        Observable<Integer> obsAgg = obsGen.Generate()
             .groupBy(s -> s / 3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
             .flatMap(grp -> grp.reduce(0, (accumulator, x) -> accumulator + x).toObservable());
         subscribe(obsAgg, true);
@@ -267,27 +285,6 @@ public class TestRunner
             sleep(10, 3);
         }
         logger.log("Application End");
-    }
-
-    private Observable<Integer> baseObservable(boolean shouldError)
-    {
-        return Observable
-            .create((ObservableEmitter<Integer> obs) -> {
-                logger.log("Observable Before Emit");
-                int[] values = {1, 2, 5, 9};
-                for (int i : values) {
-                    obs.onNext(i);
-                    logger.log("Observable Emitted");
-                }
-
-                if (shouldError) {
-                    logger.log("Observable Throwing Exception");
-                    throw new RuntimeException("Something bad happened...");
-                }
-
-                obs.onComplete();
-                logger.log("Observable After Emit");
-            });
     }
 
     private Observable<Integer> expandNextValues(Integer s)
