@@ -23,12 +23,14 @@ public class TestRunner
 
     public void run()
     {
-        testConcatCompletableOrder();
+        testRuntimeExceptionKeepEmitting();
     }
 
     private void testConcatCompletableOrder()
     {
         // If we concatenate a lot of completables, in which order do they run?
+        //  - When the entire subscription runs on a single thread, they are handled in order and an exception thrown
+        //    in one of the stages prevent further stages from running.
         logger.log("Application Start");
         List<Completable> toComplete = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
@@ -54,7 +56,24 @@ public class TestRunner
         logger.log("Application End");
     }
 
-    private void testExceptionsThrown()
+    private void testRuntimeExceptionKeepEmitting()
+    {
+        // We want to avoid a situation where an exception causes the observable to shut down. To achieve this, the
+        // following needs to happen:
+        //  - The function that can potentially error must not throw the exception directly. It must return
+        //    Observable.error(), or we must catch the exception somewhere and then call Observable.error().
+        //  - We must follow the returned Observable directly with onErrorResumeNext() without returning back up to the
+        //    parent observable.
+        runSubscribe(() ->
+        {
+            Observable<Long> obs = Observable.interval(300, TimeUnit.MILLISECONDS)
+                .flatMap((Long s) -> errorOnValue(s, 8L)
+                    .onErrorResumeNext(Observable.just((long)Integer.MAX_VALUE)));
+            return obs;
+        }, true);
+    }
+
+    private void testRuntimeExceptionImpact()
     {
         // In the case below, it seems like any exceptions are swallowed and don't appear to impact the subscribing
         // thread.
@@ -282,6 +301,13 @@ public class TestRunner
         logger.log(String.format("Map: %s", s));
         return s.toString() + "val";
     }
+
+    private <T> Observable<T> errorOnValue(T s, T comp) {
+        if (s == comp) {
+            return Observable.error(new RuntimeException("Unwanted value"));
+        }
+        return Observable.just(s);
+    };
 
     private void sleep(int numCycles, int intervalMs)
     {
