@@ -1,12 +1,15 @@
 package com.rw;
 
 import io.grpc.Context;
+import io.reactivex.Completable;
 import io.reactivex.Maybe;
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
 import io.reactivex.Single;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.schedulers.Schedulers;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class TestRunner
@@ -20,7 +23,35 @@ public class TestRunner
 
     public void run()
     {
-        testExceptionsThrown();
+        testConcatCompletableOrder();
+    }
+
+    private void testConcatCompletableOrder()
+    {
+        // If we concatenate a lot of completables, in which order do they run?
+        logger.log("Application Start");
+        List<Completable> toComplete = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            final int completableIdx = i;
+            toComplete.add(Completable.fromCallable(() -> {
+                logger.log(String.format("Completable %s", completableIdx));
+                if (completableIdx % 5 == 0) {
+                    sleep(1, 1000);
+                }
+
+                if (completableIdx == 8) {
+                    throw new RuntimeException("Could not complete...");
+                }
+                return 0;
+            }));
+        }
+        Completable comp = Completable.concat(toComplete)
+            .onErrorComplete((e) -> {
+                logger.log("OnErrorComplete");
+                return true;
+            });
+        comp.subscribe();
+        logger.log("Application End");
     }
 
     private void testExceptionsThrown()
