@@ -3,25 +3,26 @@ package com.rw;
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
 
-public class ObservableGenerator {
-
+public class ObservableGenerator
+{
     private Logger logger;
 
-    public ObservableGenerator(Logger logger) {
+    public ObservableGenerator(Logger logger)
+    {
         this.logger = logger;
     }
 
-    public Observable<Integer> Generate()
+    public Observable<Integer> generate()
     {
-        return Generate(false, 1, 2, 5, 9);
+        return generate(false, 1, 2, 5, 9);
     }
 
-    public Observable<Integer> GenerateWithError()
+    public Observable<Integer> generateWithError()
     {
-        return Generate(true, 1, 2, 5, 9);
+        return generate(true, 1, 2, 5, 9);
     }
 
-    public <T> Observable<T> Generate(boolean shouldError, T... values)
+    public <T> Observable<T> generate(boolean shouldError, T... values)
     {
         return Observable.create((ObservableEmitter<T> obs) -> {
             logger.log("Observable Before Emit");
