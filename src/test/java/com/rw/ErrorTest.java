@@ -1,15 +1,21 @@
 package com.rw;
 
+import io.reactivex.Observable;
 import io.reactivex.Single;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+// Summary
+//  - onErrorReturn catches both errors and exceptions, irrespective of whether they come from map or flatMap.
+//  - There are two ways to use onErrorReturn to catch exception, either through map or flatMap.
+//  - Once an error or exception is detected, nothing else is emitted.
 public class ErrorTest {
 
     private Logger logger;
     private ObservableGenerator obsGen;
-    private int agentId = 1;
+    private RxTester rxTester;
+    private int subscriberId = 1;
 
     // Keeps track of the current emission index from the source observable.
     private int curInstance;
@@ -19,6 +25,7 @@ public class ErrorTest {
     {
         logger = new Logger();
         obsGen = new ObservableGenerator(logger);
+        rxTester = new RxTester(logger);
         curInstance = 0;
         logger.log("Application Start");
     }
@@ -30,36 +37,57 @@ public class ErrorTest {
     }
 
     @Test
-    public void testHandleMapExceptionrFromSingle()
+    public void testHandleMapExceptionFromSingle()
     {
-        Integer result = Single.just(1)
-            .map(s -> exceptionFunc(s, 0))
-            .onErrorReturn(throwable -> -1)
-            .blockingGet();
-        logger.log(String.format("Result: %s", result));
+        rxTester.subscribe(
+            Single.just(1)
+                .map(s -> exceptionFunc(s, 0))
+                .onErrorReturn(throwable -> -1));
+    }
+
+    @Test
+    public void testHandleFlatMapErrorFromSingle()
+    {
+        rxTester.subscribe(
+            Single.just(1)
+                .flatMap(s -> singleErrorFunc(s, 0))
+                .onErrorReturn(throwable -> -1));
+    }
+
+    @Test
+    public void testHandleFlatMapExceptionFromSingle()
+    {
+        rxTester.subscribe(
+            Single.just(1)
+                .flatMap(s -> singleExceptionFunc(s, 0))
+                .onErrorReturn(throwable -> -1));
     }
 
     @Test
     public void testHandleMapExceptionFromObservable()
     {
-        // We expect the exception to terminate all future emissions.
-        obsGen.generate()
-            .map(s -> exceptionFunc(s, 2))
-            .onErrorReturn(throwable -> -1)
-            .blockingSubscribe(
-                s -> logger.log(String.format("Subscriber-%s: %s", agentId, s)),
-                s -> logger.log(String.format("Subscriber-%s: Error", agentId)),
-                () -> logger.log(String.format("Subscriber-%s: Complete", agentId)));
+        rxTester.subscribe(
+            obsGen.generate()
+                .map(s -> exceptionFunc(s, 2))
+                .onErrorReturn(throwable -> -1));
     }
 
     @Test
-    public void testHandleMapErrorFromSingle()
+    public void testHandleFlatMapErrorFromObservable()
     {
-        Integer result = Single.just(1)
-            .flatMap(s -> singleErrorFunc(s, 0))
-            .onErrorReturn(throwable -> -1)
-            .blockingGet();
-        logger.log(String.format("Result: %s", result));
+        rxTester.subscribe(
+            obsGen.generate()
+                .flatMap(s -> observableErrorFunc(s, 2))
+                .onErrorReturn(throwable -> -1));
+    }
+
+    @Test
+    public void testHandleFlatMapExceptionFromObservable()
+    {
+        rxTester.subscribe(
+            obsGen.generate()
+                .flatMap(s -> observableExceptionFunc(s, 2))
+                .onErrorReturn(throwable -> -1));
     }
 
     private <T> T exceptionFunc(T s, int failInstance)
@@ -67,7 +95,6 @@ public class ErrorTest {
         if (curInstance++ == failInstance) {
             throw new RuntimeException();
         }
-
         return s;
     }
 
@@ -76,7 +103,30 @@ public class ErrorTest {
         if (curInstance++ == failInstance) {
             return Single.error(new RuntimeException());
         }
-
         return Single.just(s);
+    }
+
+    private <T> Single<T> singleExceptionFunc(T s, int failInstance)
+    {
+        if (curInstance++ == failInstance) {
+            throw new RuntimeException();
+        }
+        return Single.just(s);
+    }
+
+    private <T> Observable<T> observableErrorFunc(T s, int failInstance)
+    {
+        if (curInstance++ == failInstance) {
+            return Observable.error(new RuntimeException());
+        }
+        return Observable.just(s);
+    }
+
+    private <T> Observable<T> observableExceptionFunc(T s, int failInstance)
+    {
+        if (curInstance++ == failInstance) {
+            throw new RuntimeException();
+        }
+        return Observable.just(s);
     }
 }

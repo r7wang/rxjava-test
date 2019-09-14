@@ -335,26 +335,6 @@ public class TestRunner
         return s.toString() + "val";
     }
 
-    private <T> Single<T> errorSingle(T s)
-    {
-        return Single.error(new RuntimeException("Single error"));
-    }
-
-    private <T> Single<T> exceptionSingle(T s)
-    {
-        throw new RuntimeException("Single exception");
-    }
-
-    private <T> Observable<T> errorObservable(T s)
-    {
-        return Observable.error(new RuntimeException("Observable error"));
-    }
-
-    private <T> Observable<T> exceptionObservable(T s)
-    {
-        throw new RuntimeException("Observable exception");
-    }
-
     private <T> Observable<T> errorOnValue(T s, T comp)
     {
         if (s == comp) {
