@@ -7,6 +7,7 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.schedulers.Schedulers;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +38,7 @@ public class TestRunner
 
     private void testBasicZip()
     {
-        runSubscribe(() ->
+        runBlockingSubscribe(() ->
         {
             // Zip allows us to concurrently merge multiple observables together through an arbitrarily defined
             // function.
@@ -47,7 +48,7 @@ public class TestRunner
             Observable<Integer> obsB = obsGen.generate(false, 3, 6, 7)
                 .subscribeOn(Schedulers.newThread());
             return Observable.zip(obsA, obsB, (a, b) -> a + b);
-        }, true);
+        });
     }
 
     private void testConcurrentZip()
@@ -306,6 +307,11 @@ public class TestRunner
         );
     }
 
+    private void runBlockingSubscribe(AppInterface app)
+    {
+        runSubscribe(app, true);
+    }
+
     private void runSubscribe(AppInterface app, boolean isBlocking)
     {
         logger.log("Application Start");
@@ -327,6 +333,26 @@ public class TestRunner
     {
         logger.log(String.format("Map: %s", s));
         return s.toString() + "val";
+    }
+
+    private <T> Single<T> errorSingle(T s)
+    {
+        return Single.error(new RuntimeException("Single error"));
+    }
+
+    private <T> Single<T> exceptionSingle(T s)
+    {
+        throw new RuntimeException("Single exception");
+    }
+
+    private <T> Observable<T> errorObservable(T s)
+    {
+        return Observable.error(new RuntimeException("Observable error"));
+    }
+
+    private <T> Observable<T> exceptionObservable(T s)
+    {
+        throw new RuntimeException("Observable exception");
     }
 
     private <T> Observable<T> errorOnValue(T s, T comp)
