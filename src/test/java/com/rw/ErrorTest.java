@@ -15,7 +15,6 @@ public class ErrorTest {
     private Logger logger;
     private ObservableGenerator obsGen;
     private RxTester rxTester;
-    private int subscriberId = 1;
 
     // Keeps track of the current emission index from the source observable.
     private int curInstance;
