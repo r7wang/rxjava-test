@@ -65,47 +65,6 @@ public class TestRunner
         logger.log("Application End");
     }
 
-    private void testRuntimeExceptionKeepEmitting()
-    {
-        // We want to avoid a situation where an exception causes the observable to shut down. To achieve this, the
-        // following needs to happen:
-        //  - The function that can potentially error must not throw the exception directly. It must return
-        //    Observable.error(), or we must catch the exception somewhere and then call Observable.error().
-        //  - We must follow the returned Observable directly with onErrorResumeNext() without returning back up to the
-        //    parent observable.
-        runSubscribe(() ->
-        {
-            Observable<Long> obs = Observable.interval(300, TimeUnit.MILLISECONDS)
-                .flatMap((Long s) -> errorOnValue(s, 8L)
-                    .onErrorResumeNext(Observable.just((long) Integer.MAX_VALUE)));
-            return obs;
-        }, true);
-    }
-
-    private void testRuntimeExceptionImpact()
-    {
-        // In the case below, it seems like any exceptions are swallowed and don't appear to impact the subscribing
-        // thread.
-        //  - If we have an onError handler, it will do what's in that handler.
-        //  - If we don't have an onError handler, the exception will be printed to console, but nothing will happen.
-        //  - In all cases, the last line is reachable.
-        runSubscribe(() ->
-        {
-            Observable<Integer> obs = obsGen.generate()
-                .map((Integer s) -> {
-                    if (true) {
-                        throw new RuntimeException("Error 1");
-                    }
-                    return s + 1;
-                })
-                .map((Integer s) -> {
-                    return s + 2;
-                });
-            return obs;
-        }, true);
-        logger.log("Is this code reachable?");
-    }
-
     private void testHotObservable()
     {
         // One of the reasons to use this is when there are multiple subscribers and we want to avoid re-computing the
@@ -288,14 +247,6 @@ public class TestRunner
     {
         logger.log(String.format("Map: %s", s));
         return s.toString() + "val";
-    }
-
-    private <T> Observable<T> errorOnValue(T s, T comp)
-    {
-        if (s == comp) {
-            return Observable.error(new RuntimeException("Unwanted value"));
-        }
-        return Observable.just(s);
     }
 
     private void subscribe(Observable obs, boolean isBlocking)

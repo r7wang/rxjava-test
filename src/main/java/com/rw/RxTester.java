@@ -2,6 +2,8 @@ package com.rw;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
+import io.reactivex.disposables.Disposable;
+import org.reactivestreams.Subscription;
 
 public class RxTester {
     private Logger logger;
@@ -33,5 +35,22 @@ public class RxTester {
             s -> logger.log(String.format("Subscriber-%s: %s", subscriberId, s)),
             s -> logger.log(String.format("Subscriber-%s: Error", subscriberId)),
             () -> logger.log(String.format("Subscriber-%s: Complete", subscriberId)));
+    }
+
+    public <T> void subscribeAndWait(Observable<T> source, long waitMillis)
+    {
+        subscribeAndWait(source, 1, waitMillis);
+    }
+
+    public <T> void subscribeAndWait(Observable<T> source, int subscriberId, long waitMillis)
+    {
+        Disposable disposable = source.subscribe(
+            s -> logger.log(String.format("Subscriber-%s: %s", subscriberId, s)),
+            s -> logger.log(String.format("Subscriber-%s: Error", subscriberId)),
+            () -> logger.log(String.format("Subscriber-%s: Complete", subscriberId)));
+        try {
+            Thread.sleep(waitMillis);
+        } catch (InterruptedException ex) {}
+        disposable.dispose();
     }
 }

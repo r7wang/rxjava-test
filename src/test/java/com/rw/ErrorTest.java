@@ -2,14 +2,18 @@ package com.rw;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
+import io.reactivex.schedulers.Schedulers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
 
 // Summary
 //  - onErrorReturn catches both errors and exceptions, irrespective of whether they come from map or flatMap.
 //  - There are two ways to use onErrorReturn to catch exception, either through map or flatMap.
 //  - Once an error or exception is detected, nothing else is emitted.
+//  - Unhandled exceptions in the observable chain have no impact on the subscribing thread.
 public class ErrorTest {
 
     private Logger logger;
@@ -87,6 +91,37 @@ public class ErrorTest {
             obsGen.generate()
                 .flatMap(s -> observableExceptionFunc(s, 2))
                 .onErrorReturn(throwable -> -1));
+    }
+
+    @Test
+    public void testRuntimeExceptionImpact()
+    {
+        // Exceptions are swallowed and don't appear to impact the subscribing thread.
+        //  - If we have an onError handler, it will do what's in that handler.
+        //  - If we don't have an onError handler, the exception will be printed to console, but nothing will happen.
+        //  - In all cases, the last line is reachable.
+        rxTester.subscribe(
+            obsGen.generate()
+                .map((Integer s) -> {
+                    throw new RuntimeException();
+                }));
+        logger.log("Is this code reachable?");
+    }
+
+    @Test
+    public void testRuntimeExceptionKeepEmitting()
+    {
+        // We want to avoid a situation where an exception causes the observable to shut down. To achieve this, the
+        // following needs to happen:
+        //  - The function that can potentially error must not throw the exception directly. It must return
+        //    Observable.error(), or we must catch the exception somewhere and then call Observable.error().
+        //  - We must follow the returned Observable directly with onErrorResumeNext() without returning back up to the
+        //    parent observable.
+        rxTester.subscribeAndWait(
+            Observable.interval(20, TimeUnit.MILLISECONDS)
+                .flatMap((Long s) -> observableErrorFunc(s, 8)
+                .onErrorResumeNext(Observable.just((long) Integer.MAX_VALUE))),
+            500);
     }
 
     private <T> T exceptionFunc(T s, int failInstance)
