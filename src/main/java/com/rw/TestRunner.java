@@ -33,46 +33,6 @@ public class TestRunner
 
     public void run()
     {
-        testConcurrentZip();
-    }
-
-    private void testBasicZip()
-    {
-        runBlockingSubscribe(() ->
-        {
-            // Zip allows us to concurrently merge multiple observables together through an arbitrarily defined
-            // function.
-            //  - It will only do so if there are corresponding elements in both observables.
-            Observable<Integer> obsA = obsGen.generate(false, 1, 2, 5, 9)
-                .subscribeOn(Schedulers.newThread());
-            Observable<Integer> obsB = obsGen.generate(false, 3, 6, 7)
-                .subscribeOn(Schedulers.newThread());
-            return Observable.zip(obsA, obsB, (a, b) -> a + b);
-        });
-    }
-
-    private void testConcurrentZip()
-    {
-        logger.log("Application Start");
-        List<Single<TaskResult>> zipped = new ArrayList<>();
-        for (int i = 0; i < 6; i++) {
-            zipped.add(singleGen.generateTask());
-        }
-        Single<TaskResult> obs = Single.zip(zipped, (Object[] objs) -> {
-            boolean allDone = true;
-            for (Object obj : objs) {
-                TaskResult result = (TaskResult) obj;
-                logger.log(String.format("Task Result: %s", result));
-                if (result == TaskResult.ERROR) {
-                    allDone = false;
-                }
-            }
-
-            return allDone ? TaskResult.DONE : TaskResult.ERROR;
-        });
-        TaskResult result = obs.blockingGet();
-        logger.log(String.format("Result: %s", result));
-        logger.log("Application End");
     }
 
     private void testConcatCompletableOrder()
@@ -305,11 +265,6 @@ public class TestRunner
             Throwable::printStackTrace,
             () -> logger.log("Done from EmptySource")
         );
-    }
-
-    private void runBlockingSubscribe(AppInterface app)
-    {
-        runSubscribe(app, true);
     }
 
     private void runSubscribe(AppInterface app, boolean isBlocking)
