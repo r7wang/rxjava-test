@@ -125,58 +125,6 @@ public class TestRunner
         }, false);
     }
 
-    private void testFireForget()
-    {
-        // Defines an approach to firing off a call to a microservice without needing to block on or wait for
-        // the response. If the microservice call errors out, there's no impact on the main process.
-        Context.current().fork().run(() -> {
-            Observable obs = obsGen.generateWithError()
-                .subscribeOn(Schedulers.newThread());
-            subscribe(obs, true);
-        });
-        sleeper.sleep(10, 500);
-    }
-
-    private void testScheduling()
-    {
-        // Uses a mix of subscribeOn and observeOn with print statements to better understand what threads are
-        // running which parts of the system.
-        //  - Try commenting out the subscribeOn or any of the observeOn.
-        runSubscribe(() ->
-        {
-            Observable<String> obs = obsGen.generate()
-                .subscribeOn(Schedulers.newThread())
-                .observeOn(Schedulers.newThread())
-                .flatMap(this::expandNextValues)
-                .observeOn(Schedulers.newThread())
-                .map(this::intToString);
-            return obs;
-        }, false);
-    }
-
-    private void testDefer()
-    {
-        // Compared to Observable.just, defer runs the function when a new subscription is received, which means that
-        // both subscribers will see different times. Observable.fromCallable is similar but only emits a single
-        // object.
-        Observable<Long> obs = Observable.defer(() -> {
-            long time = System.currentTimeMillis();
-            return Observable.just(time);
-        });
-        // Observable<Long> obs = Observable.fromCallable(() -> {
-        //    long time = System.currentTimeMillis();
-        //    return time;
-        // });
-        // Observable<Long> obs = Observable.just(System.currentTimeMillis());
-        subscribe(obs, true);
-        try {
-            Thread.sleep(1000);
-        }
-        catch (Exception ex) {
-        }
-        subscribe(obs, true);
-    }
-
     private void testGroupBy()
     {
         // We can do the same thing with a regular map.
@@ -190,40 +138,6 @@ public class TestRunner
             .groupBy(s -> s / 3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
             .flatMap(grp -> grp.reduce(0, (accumulator, x) -> accumulator + x).toObservable());
         subscribe(obsAgg, true);
-    }
-
-    private void testMultipleSubscriber()
-    {
-        // Both subscribers see the same results.
-        Observable<Integer> obs = Observable.fromArray(1, 2, 5, 9);
-        subscribe(obs, 1, true);
-        subscribe(obs, 2, true);
-    }
-
-    private void testEmission()
-    {
-        // Single emission.
-        Single<String> singleSource = Single.just("single item");
-        singleSource.subscribe(
-            s -> logger.log("Item received: from singleSource " + s),
-            Throwable::printStackTrace
-        );
-
-        // Maybe emits something.
-        Maybe<String> maybeSource = Maybe.just("single item");
-        maybeSource.subscribe(
-            s -> logger.log("Item received: from maybeSource " + s),
-            Throwable::printStackTrace,
-            () -> logger.log("Done from MaybeSource")
-        );
-
-        // Maybe emits nothing.
-        Maybe<Integer> emptySource = Maybe.empty();
-        emptySource.subscribe(
-            s -> logger.log("Item received: from emptySource" + s),
-            Throwable::printStackTrace,
-            () -> logger.log("Done from EmptySource")
-        );
     }
 
     private void runSubscribe(AppInterface app, boolean isBlocking)
