@@ -53,7 +53,11 @@ public class ZipTest {
     {
         List<Single<TaskResult>> zipped = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
-            zipped.add(singleGen.generateTask());
+            if (i == 4) {
+                zipped.add(singleGen.generateTask(i, TaskResult.ERROR));
+            } else {
+                zipped.add(singleGen.generateTask(i, TaskResult.DONE));
+            }
         }
 
         rxTester.subscribe(

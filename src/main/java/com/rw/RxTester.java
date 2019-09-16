@@ -49,12 +49,12 @@ public class RxTester {
             () -> logger.log(String.format("Subscriber-%s: Complete", subscriberId)));
     }
 
-    public <T> void subscribeAndWait(Observable<T> source, long waitMillis)
+    public <T> Disposable subscribeAndWait(Observable<T> source, long waitMillis)
     {
-        subscribeAndWait(source, 1, waitMillis);
+        return subscribeAndWait(source, 1, waitMillis);
     }
 
-    public <T> void subscribeAndWait(Observable<T> source, int subscriberId, long waitMillis)
+    public <T> Disposable subscribeAndWait(Observable<T> source, int subscriberId, long waitMillis)
     {
         Disposable disposable = source.subscribe(
             s -> logger.log(String.format("Subscriber-%s: %s", subscriberId, s)),
@@ -63,6 +63,17 @@ public class RxTester {
         try {
             Thread.sleep(waitMillis);
         } catch (InterruptedException ex) {}
+        return disposable;
+    }
+
+    public <T> void subscribeAndDispose(Observable<T> source, long waitMillis)
+    {
+        subscribeAndDispose(source, 1, waitMillis);
+    }
+
+    public <T> void subscribeAndDispose(Observable<T> source, int subscriberId, long waitMillis)
+    {
+        Disposable disposable = subscribeAndWait(source, subscriberId, waitMillis);
         disposable.dispose();
     }
 }
