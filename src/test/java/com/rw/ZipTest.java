@@ -40,9 +40,9 @@ public class ZipTest {
     {
         rxTester.subscribe(
             Observable.zip(
-                obsGen.generate(false, 1, 2, 5, 9)
+                obsGen.generate(1, 2, 5, 9)
                     .subscribeOn(Schedulers.newThread()),
-                obsGen.generate(false, 3, 6, 7)
+                obsGen.generate(3, 6, 7)
                     .subscribeOn(Schedulers.newThread()),
                 (a, b) -> a + b)
         );

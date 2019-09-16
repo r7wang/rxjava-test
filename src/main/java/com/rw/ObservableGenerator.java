@@ -14,26 +14,16 @@ public class ObservableGenerator
 
     public Observable<Integer> generate()
     {
-        return generate(false, 1, 2, 5, 9);
+        return generate(1, 2, 5, 9);
     }
 
-    public Observable<Integer> generateWithError()
-    {
-        return generate(true, 1, 2, 5, 9);
-    }
-
-    public <T> Observable<T> generate(boolean shouldError, T... values)
+    public <T> Observable<T> generate(T... values)
     {
         return Observable.create((ObservableEmitter<T> obs) -> {
             logger.log("Observable Before Emit");
             for (T i : values) {
                 obs.onNext(i);
                 logger.log(String.format("Observable Emitted %s", i));
-            }
-
-            if (shouldError) {
-                logger.log("Observable Throwing Exception");
-                throw new RuntimeException("Something bad happened...");
             }
 
             obs.onComplete();

@@ -37,8 +37,11 @@ public class ConcurrencyTest {
         // the response. If the microservice call errors out, there's no impact on the main process.
         Context.current().fork().run(() -> {
             rxTester.subscribe(
-                obsGen.generateWithError()
-                    .subscribeOn(Schedulers.newThread()));
+                obsGen.generate()
+                    .subscribeOn(Schedulers.newThread())
+                    .map(s -> {
+                        throw new RuntimeException();
+                    }));
         });
         sleeper.sleep(10, 500);
     }

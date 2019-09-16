@@ -14,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 //  - There are two ways to use onErrorReturn to catch exception, either through map or flatMap.
 //  - Once an error or exception is detected, nothing else is emitted.
 //  - Unhandled exceptions in the observable chain have no impact on the subscribing thread.
+//  - doOnError might be something to use when we want to clean up after an error. The subscriber onError() may not
+//    have enough knowledge to do this effectively.
 public class ErrorTest {
 
     private Logger logger;
@@ -124,6 +126,67 @@ public class ErrorTest {
                 //.map(s -> s)
                 .onErrorResumeNext(Observable.just((long) Integer.MAX_VALUE)),
             500);
+    }
+
+    @Test
+    public void testDoOnErrorOrder()
+    {
+        // Order of doOnError() will determine whether or not it executes. If doOnError() is specified before an error
+        // occurs in the observable chain, then it won't be invoked.
+        rxTester.subscribe(
+            obsGen.generate()
+                .doOnError(error -> logger.log(String.format("doOnError (Before): %s", error)))
+                .map(s -> exceptionFunc(s, 2))
+                .doOnError(error -> logger.log(String.format("doOnError (After): %s", error)))
+        );
+    }
+
+    @Test
+    public void testMultipleDoOnError()
+    {
+        // Both doOnError() callbacks will be invoked, in the order specified.
+        rxTester.subscribe(
+            obsGen.generate()
+                .map(s -> exceptionFunc(s, 2))
+                .doOnError(error -> logger.log(String.format("doOnError (Before): %s", error)))
+                .doOnError(error -> logger.log(String.format("doOnError (After): %s", error)))
+        );
+    }
+
+    @Test
+    public void testEmissionHaltingOnError()
+    {
+        // Not all operations will complete after the error occurs, but there doesn't seem to be a specific guarantee
+        // on when execution will stop (best effort).
+        //  - We don't want to make any assumption on how many emits have been consumed, especially if there have been
+        //    multiple threads involved. Any final state should ideally be handled by the subscriber unless we have a
+        //    good way to store partial state.
+        //  - If a doError exists in the chain, it seems that the duration of doOnError execution impacts how much work
+        //    is done by the chained operators. If doOnError takes a long time, then execution will occur for a longer
+        //    period of time after the error occurs.
+        rxTester.subscribe(
+            obsGen.generate(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+                .subscribeOn(Schedulers.newThread())
+                .observeOn(Schedulers.newThread())
+                .map(s -> {
+                    if (s == 8) {
+                        logger.log("Map (Stage 1): Error");
+                        throw new RuntimeException();
+                    }
+                    logger.log(String.format("Map (Stage 1): %s", s));
+                    return s + 10;
+                })
+                .observeOn(Schedulers.newThread())
+                .map(s -> {
+                    logger.log(String.format("Map (Stage 2): %s", s));
+                    return s + 100;
+                })
+                .observeOn(Schedulers.newThread())
+                .map(s -> {
+                    logger.log(String.format("Map (Stage 3): %s", s));
+                    return s + 1000;
+                })
+        );
     }
 
     private <T> T exceptionFunc(T s, int failInstance)
