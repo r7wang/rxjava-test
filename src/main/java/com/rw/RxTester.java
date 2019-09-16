@@ -1,9 +1,9 @@
 package com.rw;
 
+import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.Disposable;
-import org.reactivestreams.Subscription;
 
 public class RxTester {
     private Logger logger;
@@ -11,6 +11,18 @@ public class RxTester {
     public RxTester(Logger logger)
     {
         this.logger = logger;
+    }
+
+    public void subscribe(Completable source)
+    {
+        subscribe(source, 1);
+    }
+
+    public void subscribe(Completable source, int subscriberId)
+    {
+        source.subscribe(
+            () -> logger.log(String.format("Subscriber-%s: Complete", subscriberId)),
+            s -> logger.log(String.format("Subscriber-%s: Error", subscriberId)));
     }
 
     public <T> void subscribe(Single<T> source)

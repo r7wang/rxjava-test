@@ -7,26 +7,14 @@ public class Main
     {
         Logger logger = new Logger();
         Sleeper sleeper = new Sleeper(logger);
-        SingleGenerator singleGen = new SingleGenerator(logger);
         ObservableGenerator obsGen = new ObservableGenerator(logger);
         TestRunner runner = new TestRunner(
             logger,
             sleeper,
-            singleGen,
             obsGen);
 
         // The test runner allows us to see how passing around object instance functions would look
         // like in an RxJava-style application (as opposed to static functions using Main::<funcName>.
         runner.run();
-
-        /*
-        // example: flatMap
-        Observable<Integer> obsFlatMap = obsBase
-            .flatMap(s -> Observable.fromArray(s, s + 1, s + 2));
-
-        // example: map
-        Observable<String> obsMap = obsBase
-            .map(s -> s.toString() + "val");
-         */
     }
 }

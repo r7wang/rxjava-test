@@ -1,68 +1,29 @@
 package com.rw;
 
-import io.grpc.Context;
-import io.reactivex.Completable;
-import io.reactivex.Maybe;
 import io.reactivex.Observable;
-import io.reactivex.Single;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.schedulers.Schedulers;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class TestRunner
 {
     private Logger logger;
     private Sleeper sleeper;
-    private SingleGenerator singleGen;
     private ObservableGenerator obsGen;
 
     public TestRunner(
         Logger logger,
         Sleeper sleeper,
-        SingleGenerator singleGen,
         ObservableGenerator obsGen)
     {
         this.logger = logger;
         this.sleeper = sleeper;
-        this.singleGen = singleGen;
         this.obsGen = obsGen;
     }
 
     public void run()
     {
-    }
-
-    private void testConcatCompletableOrder()
-    {
-        // If we concatenate a lot of completables, in which order do they run?
-        //  - When the entire subscription runs on a single thread, they are handled in order and an exception thrown
-        //    in one of the stages prevent further stages from running.
-        logger.log("Application Start");
-        List<Completable> toComplete = new ArrayList<>();
-        for (int i = 0; i < 20; i++) {
-            final int completableIdx = i;
-            toComplete.add(Completable.fromCallable(() -> {
-                logger.log(String.format("Completable %s", completableIdx));
-                if (completableIdx % 5 == 0) {
-                    sleeper.sleep(1, 1000);
-                }
-
-                if (completableIdx == 8) {
-                    throw new RuntimeException("Could not complete...");
-                }
-                return 0;
-            }));
-        }
-        Completable comp = Completable.concat(toComplete)
-            .onErrorComplete((e) -> {
-                logger.log("OnErrorComplete");
-                return true;
-            });
-        comp.subscribe();
-        logger.log("Application End");
     }
 
     private void testHotObservable()
@@ -123,21 +84,6 @@ public class TestRunner
                 .map(this::intToString);
             return obs;
         }, false);
-    }
-
-    private void testGroupBy()
-    {
-        // We can do the same thing with a regular map.
-        Observable<String> obsGroupBy = obsGen.generate()
-            .groupBy(s -> s / 3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
-            .flatMap(grp -> grp.map(s -> String.format("%s -> %s", grp.getKey(), s)));
-        subscribe(obsGroupBy, true);
-
-        // Aggregation shows a better use case of why we may want to use a groupBy.
-        Observable<Integer> obsAgg = obsGen.generate()
-            .groupBy(s -> s / 3, s -> s)  // Observable<GroupedObservable<Integer, Integer>>
-            .flatMap(grp -> grp.reduce(0, (accumulator, x) -> accumulator + x).toObservable());
-        subscribe(obsAgg, true);
     }
 
     private void runSubscribe(AppInterface app, boolean isBlocking)

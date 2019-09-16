@@ -3,9 +3,11 @@ package com.rw;
 import io.reactivex.Single;
 import io.reactivex.schedulers.Schedulers;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 public class SingleGenerator
 {
-    static int TASK_ID = 1;
+    static AtomicInteger TASK_ID = new AtomicInteger(0);
 
     private Logger logger;
 
@@ -22,8 +24,7 @@ public class SingleGenerator
 
     public TaskResult task()
     {
-        // Not atomic, but it's not super critical here.
-        int taskId = TASK_ID++;
+        int taskId = TASK_ID.incrementAndGet();
 
         logger.log(String.format("Task-%s: Start", taskId));
         try {

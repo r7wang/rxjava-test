@@ -116,11 +116,13 @@ public class ErrorTest {
         //  - The function that can potentially error must not throw the exception directly. It must return
         //    Observable.error(), or we must catch the exception somewhere and then call Observable.error().
         //  - We must follow the returned Observable directly with onErrorResumeNext() without returning back up to the
-        //    parent observable.
+        //    parent observable. If we even add something like an identity map between the error and
+        //    onErrorResumeNext(), the observable chain will stop after the emission that caused the error.
         rxTester.subscribeAndWait(
             Observable.interval(20, TimeUnit.MILLISECONDS)
-                .flatMap((Long s) -> observableErrorFunc(s, 8)
-                .onErrorResumeNext(Observable.just((long) Integer.MAX_VALUE))),
+                .flatMap((Long s) -> observableErrorFunc(s, 8))
+                //.map(s -> s)
+                .onErrorResumeNext(Observable.just((long) Integer.MAX_VALUE)),
             500);
     }
 
